@@ -1,7 +1,10 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.layout}>
@@ -10,9 +13,15 @@ export default function HomeScreen() {
         <View style={styles.sidebar}>
           <Text style={styles.logo}>BH</Text>
           <View style={styles.sidebarIcons}>
-            <Text style={styles.icon}>person</Text>
-            <Text style={styles.icon}>search</Text>
-            <Text style={styles.icon}>pencil</Text>
+            <TouchableOpacity onPress={() => router.push('/user-profile')}>
+              <Text style={styles.icon}>user</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/search')}>
+              <Text style={styles.icon}>search</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/medication-profile')}>
+              <Text style={styles.icon}>edit</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -22,13 +31,13 @@ export default function HomeScreen() {
           <Text style={styles.nameHeading}>Name</Text>
 
           <View style={styles.buttonGroup}>
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/drug-checker')}>
               <Text style={styles.buttonText}>Quick Reference</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/meds-list')}>
               <Text style={styles.buttonText}>List of Existing Meds</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.button}>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/recent-searches')}>
               <Text style={styles.buttonText}>Recent Searches</Text>
             </TouchableOpacity>
           </View>

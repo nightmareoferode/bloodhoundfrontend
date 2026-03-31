@@ -8,6 +8,9 @@ export default function RootLayout() {
       <Stack.Screen name="signup" options={{ title: 'Sign Up' }} />
       <Stack.Screen name="medication-profile" options={{ title: 'Medication Profile' }} />
       <Stack.Screen name="home" options={{ headerShown: false }} />
+      <Stack.Screen name="drug-checker" options={{ title: 'Quick Reference' }} />
+      <Stack.Screen name="user-profile" options={{ title: 'My Profile' }} />
+      <Stack.Screen name="meds-list" options={{ title: 'Existing Medications' }} />
     </Stack>
   );
 }

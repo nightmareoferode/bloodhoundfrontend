@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,17 +18,7 @@ import { z } from 'zod';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
 
-const schema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  age: z
-    .string()
-    .min(1, 'Age is required')
-    .refine((v) => /^\d+$/.test(v) && parseInt(v, 10) > 0, {
-      message: 'Age must be a positive number',
-    }),
-  sex: z.enum(['Male', 'Female', 'Other'], {
-    error: 'Please select a sex',
-  }),
+const medicationEntrySchema = z.object({
   medicationName: z.string().min(1, 'Medication name is required'),
   potency: z
     .string()
@@ -62,6 +52,21 @@ const schema = z.object({
   doctorNumber: z.string().optional(),
 });
 
+const schema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  age: z
+    .string()
+    .min(1, 'Age is required')
+    .refine((v) => /^\d+$/.test(v) && parseInt(v, 10) > 0, {
+      message: 'Age must be a positive number',
+    }),
+  sex: z.enum(['Male', 'Female', 'Other'], {
+    error: 'Please select a sex',
+  }),
+  medications: z.array(medicationEntrySchema).min(1),
+});
+
+type MedicationEntryData = z.infer<typeof medicationEntrySchema>;
 type FormData = z.infer<typeof schema>;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -79,7 +84,23 @@ interface SelectFieldProps {
 
 interface MedicationProfileFormProps {
   onSubmit: (data: FormData) => void;
+  initialValues?: Partial<FormData>;
 }
+
+// ─── Empty medication defaults ───────────────────────────────────────────────
+
+const EMPTY_MEDICATION: MedicationEntryData = {
+  medicationName: '',
+  potency: '',
+  productType: undefined as any,
+  methodOfIntake: undefined as any,
+  courseDuration: '',
+  courseDurationUnit: 'days',
+  timesPerDay: '',
+  firstDoseTime: '',
+  doctorName: '',
+  doctorNumber: '',
+};
 
 // ─── Select Modal ─────────────────────────────────────────────────────────────
 
@@ -138,7 +159,7 @@ function SelectField({ label, value, options, placeholder, onSelect, error }: Se
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function MedicationProfileForm({ onSubmit }: MedicationProfileFormProps) {
+export default function MedicationProfileForm({ onSubmit, initialValues }: MedicationProfileFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -149,25 +170,22 @@ export default function MedicationProfileForm({ onSubmit }: MedicationProfileFor
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      name: '',
-      age: '',
-      sex: undefined,
-      medicationName: '',
-      potency: '',
-      productType: undefined,
-      methodOfIntake: undefined,
-      courseDuration: '',
-      courseDurationUnit: 'days',
-      timesPerDay: '',
-      firstDoseTime: '',
-      doctorName: '',
-      doctorNumber: '',
+      name: initialValues?.name ?? '',
+      age: initialValues?.age ?? '',
+      sex: initialValues?.sex,
+      medications: initialValues?.medications?.length
+        ? initialValues.medications
+        : [{ ...EMPTY_MEDICATION }],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'medications',
   });
 
   const handleFormSubmit = (data: FormData) => {
     setIsSubmitting(true);
-    console.log('[MedicationProfileForm] Submitted:', JSON.stringify(data, null, 2));
     onSubmit(data);
     setIsSubmitting(false);
   };
@@ -175,6 +193,8 @@ export default function MedicationProfileForm({ onSubmit }: MedicationProfileFor
   const handleReset = () => {
     reset();
   };
+
+  const medicationErrors = errors.medications;
 
   return (
     <KeyboardAvoidingView
@@ -262,251 +282,284 @@ export default function MedicationProfileForm({ onSubmit }: MedicationProfileFor
               />
             )}
           />
-
-          {/* Section: Medication Details */}
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Medication Details</Text>
-          <View style={styles.divider} />
-
-          {/* Medication Name */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Medication Name</Text>
-            <Controller
-              control={control}
-              name="medicationName"
-              render={({ field: { value, onChange, onBlur } }) => (
-                <TextInput
-                  style={[styles.input, errors.medicationName ? styles.inputError : null]}
-                  placeholder="e.g. Amoxicillin"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                />
-              )}
-            />
-            {errors.medicationName ? <Text style={styles.errorText}>{errors.medicationName.message}</Text> : null}
-          </View>
-
-          {/* Potency */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Potency <Text style={styles.optionalTag}>(optional)</Text>
-            </Text>
-            <View style={styles.inputRow}>
-              <Controller
-                control={control}
-                name="potency"
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <TextInput
-                    style={[styles.input, styles.inputFlex, errors.potency ? styles.inputError : null]}
-                    placeholder="e.g. 500"
-                    placeholderTextColor={COLORS.placeholder}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    keyboardType="decimal-pad"
-                    returnKeyType="next"
-                  />
-                )}
-              />
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitText}>mg</Text>
-              </View>
-            </View>
-            {errors.potency ? <Text style={styles.errorText}>{errors.potency.message}</Text> : null}
-          </View>
-
-          {/* Product Type */}
-          <Controller
-            control={control}
-            name="productType"
-            render={({ field: { value, onChange } }) => (
-              <SelectField
-                label="Product Type"
-                value={value ?? ''}
-                options={PRODUCT_TYPE_OPTIONS}
-                placeholder="Select product type"
-                onSelect={onChange}
-                error={errors.productType?.message}
-              />
-            )}
-          />
-
-          {/* Method of Intake */}
-          <Controller
-            control={control}
-            name="methodOfIntake"
-            render={({ field: { value, onChange } }) => (
-              <SelectField
-                label="Method of Intake"
-                value={value ?? ''}
-                options={INTAKE_METHOD_OPTIONS}
-                placeholder="Select method"
-                onSelect={onChange}
-                error={errors.methodOfIntake?.message}
-              />
-            )}
-          />
-
-          {/* Section: Course & Schedule */}
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Course & Schedule</Text>
-          <View style={styles.divider} />
-
-          {/* Course Duration */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Course Duration</Text>
-            <View style={styles.inputRow}>
-              <Controller
-                control={control}
-                name="courseDuration"
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <TextInput
-                    style={[styles.input, styles.inputFlex, errors.courseDuration ? styles.inputError : null]}
-                    placeholder="e.g. 7"
-                    placeholderTextColor={COLORS.placeholder}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    keyboardType="number-pad"
-                    returnKeyType="next"
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="courseDurationUnit"
-                render={({ field: { value, onChange } }) => (
-                  <View style={styles.durationUnitRow}>
-                    {(['days', 'weeks', 'months'] as const).map((unit) => (
-                      <TouchableOpacity
-                        key={unit}
-                        style={[styles.durationUnitBtn, value === unit && styles.durationUnitBtnActive]}
-                        onPress={() => onChange(unit)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.durationUnitBtnText, value === unit && styles.durationUnitBtnTextActive]}>
-                          {unit.charAt(0).toUpperCase() + unit.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              />
-            </View>
-            {errors.courseDuration ? (
-              <Text style={styles.errorText}>{errors.courseDuration.message}</Text>
-            ) : null}
-          </View>
-
-          {/* Times Per Day */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Frequency</Text>
-            <View style={styles.inputRow}>
-              <Controller
-                control={control}
-                name="timesPerDay"
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <TextInput
-                    style={[styles.input, styles.inputFlex, errors.timesPerDay ? styles.inputError : null]}
-                    placeholder="e.g. 3"
-                    placeholderTextColor={COLORS.placeholder}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    keyboardType="number-pad"
-                    returnKeyType="next"
-                  />
-                )}
-              />
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitText}>times/day</Text>
-              </View>
-            </View>
-            {errors.timesPerDay ? <Text style={styles.errorText}>{errors.timesPerDay.message}</Text> : null}
-          </View>
-
-          {/* First Dose Time */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>First Dose Time</Text>
-            <View style={styles.inputRow}>
-              <Controller
-                control={control}
-                name="firstDoseTime"
-                render={({ field: { value, onChange, onBlur } }) => (
-                  <TextInput
-                    style={[styles.input, styles.inputFlex, errors.firstDoseTime ? styles.inputError : null]}
-                    placeholder="HH:MM  (e.g. 08:00)"
-                    placeholderTextColor={COLORS.placeholder}
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    keyboardType="numbers-and-punctuation"
-                    returnKeyType="done"
-                    maxLength={5}
-                  />
-                )}
-              />
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitText}>24h</Text>
-              </View>
-            </View>
-            {errors.firstDoseTime ? (
-              <Text style={styles.errorText}>{errors.firstDoseTime.message}</Text>
-            ) : null}
-          </View>
-
-          {/* Section: Doctor Information */}
-          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Doctor Information</Text>
-          <View style={styles.divider} />
-
-          {/* Doctor Name */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Doctor Name <Text style={styles.optionalTag}>(optional)</Text>
-            </Text>
-            <Controller
-              control={control}
-              name="doctorName"
-              render={({ field: { value, onChange, onBlur } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Dr. Smith"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                />
-              )}
-            />
-          </View>
-
-          {/* Doctor Number */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>
-              Doctor Number <Text style={styles.optionalTag}>(optional)</Text>
-            </Text>
-            <Controller
-              control={control}
-              name="doctorNumber"
-              render={({ field: { value, onChange, onBlur } }) => (
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. +1 234 567 8900"
-                  placeholderTextColor={COLORS.placeholder}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  keyboardType="phone-pad"
-                  returnKeyType="done"
-                />
-              )}
-            />
-          </View>
         </View>
+
+        {/* Medications */}
+        {fields.map((field, index) => {
+          const medErrors = Array.isArray(medicationErrors) ? medicationErrors[index] : undefined;
+
+          return (
+            <View key={field.id} style={styles.medicationCard}>
+              {/* Medication card header */}
+              <View style={styles.medicationCardHeader}>
+                <Text style={styles.medicationCardTitle}>
+                  Medication {fields.length > 1 ? index + 1 : ''}
+                </Text>
+                {fields.length > 1 && (
+                  <TouchableOpacity onPress={() => remove(index)} activeOpacity={0.7} style={styles.removeButton}>
+                    <Text style={styles.removeButtonText}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Medication Details */}
+              <Text style={styles.sectionTitle}>Medication Details</Text>
+              <View style={styles.divider} />
+
+              {/* Medication Name */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Medication Name</Text>
+                <Controller
+                  control={control}
+                  name={`medications.${index}.medicationName`}
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      style={[styles.input, medErrors?.medicationName ? styles.inputError : null]}
+                      placeholder="e.g. Amoxicillin"
+                      placeholderTextColor={COLORS.placeholder}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                    />
+                  )}
+                />
+                {medErrors?.medicationName ? (
+                  <Text style={styles.errorText}>{medErrors.medicationName.message}</Text>
+                ) : null}
+              </View>
+
+              {/* Potency */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>
+                  Potency <Text style={styles.optionalTag}>(optional)</Text>
+                </Text>
+                <View style={styles.inputRow}>
+                  <Controller
+                    control={control}
+                    name={`medications.${index}.potency`}
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, medErrors?.potency ? styles.inputError : null]}
+                        placeholder="e.g. 500"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="decimal-pad"
+                        returnKeyType="next"
+                      />
+                    )}
+                  />
+                  <View style={styles.unitBadge}>
+                    <Text style={styles.unitText}>mg</Text>
+                  </View>
+                </View>
+                {medErrors?.potency ? <Text style={styles.errorText}>{medErrors.potency.message}</Text> : null}
+              </View>
+
+              {/* Product Type */}
+              <Controller
+                control={control}
+                name={`medications.${index}.productType`}
+                render={({ field: { value, onChange } }) => (
+                  <SelectField
+                    label="Product Type"
+                    value={value ?? ''}
+                    options={PRODUCT_TYPE_OPTIONS}
+                    placeholder="Select product type"
+                    onSelect={onChange}
+                    error={medErrors?.productType?.message}
+                  />
+                )}
+              />
+
+              {/* Method of Intake */}
+              <Controller
+                control={control}
+                name={`medications.${index}.methodOfIntake`}
+                render={({ field: { value, onChange } }) => (
+                  <SelectField
+                    label="Method of Intake"
+                    value={value ?? ''}
+                    options={INTAKE_METHOD_OPTIONS}
+                    placeholder="Select method"
+                    onSelect={onChange}
+                    error={medErrors?.methodOfIntake?.message}
+                  />
+                )}
+              />
+
+              {/* Course & Schedule */}
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Course & Schedule</Text>
+              <View style={styles.divider} />
+
+              {/* Course Duration */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Course Duration</Text>
+                <View style={styles.inputRow}>
+                  <Controller
+                    control={control}
+                    name={`medications.${index}.courseDuration`}
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, medErrors?.courseDuration ? styles.inputError : null]}
+                        placeholder="e.g. 7"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="number-pad"
+                        returnKeyType="next"
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`medications.${index}.courseDurationUnit`}
+                    render={({ field: { value, onChange } }) => (
+                      <View style={styles.durationUnitRow}>
+                        {(['days', 'weeks', 'months'] as const).map((unit) => (
+                          <TouchableOpacity
+                            key={unit}
+                            style={[styles.durationUnitBtn, value === unit && styles.durationUnitBtnActive]}
+                            onPress={() => onChange(unit)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.durationUnitBtnText, value === unit && styles.durationUnitBtnTextActive]}>
+                              {unit.charAt(0).toUpperCase() + unit.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  />
+                </View>
+                {medErrors?.courseDuration ? (
+                  <Text style={styles.errorText}>{medErrors.courseDuration.message}</Text>
+                ) : null}
+              </View>
+
+              {/* Times Per Day */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Frequency</Text>
+                <View style={styles.inputRow}>
+                  <Controller
+                    control={control}
+                    name={`medications.${index}.timesPerDay`}
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, medErrors?.timesPerDay ? styles.inputError : null]}
+                        placeholder="e.g. 3"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="number-pad"
+                        returnKeyType="next"
+                      />
+                    )}
+                  />
+                  <View style={styles.unitBadge}>
+                    <Text style={styles.unitText}>times/day</Text>
+                  </View>
+                </View>
+                {medErrors?.timesPerDay ? <Text style={styles.errorText}>{medErrors.timesPerDay.message}</Text> : null}
+              </View>
+
+              {/* First Dose Time */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>First Dose Time</Text>
+                <View style={styles.inputRow}>
+                  <Controller
+                    control={control}
+                    name={`medications.${index}.firstDoseTime`}
+                    render={({ field: { value, onChange, onBlur } }) => (
+                      <TextInput
+                        style={[styles.input, styles.inputFlex, medErrors?.firstDoseTime ? styles.inputError : null]}
+                        placeholder="HH:MM  (e.g. 08:00)"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="numbers-and-punctuation"
+                        returnKeyType="done"
+                        maxLength={5}
+                      />
+                    )}
+                  />
+                  <View style={styles.unitBadge}>
+                    <Text style={styles.unitText}>24h</Text>
+                  </View>
+                </View>
+                {medErrors?.firstDoseTime ? (
+                  <Text style={styles.errorText}>{medErrors.firstDoseTime.message}</Text>
+                ) : null}
+              </View>
+
+              {/* Doctor Information */}
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Doctor Information</Text>
+              <View style={styles.divider} />
+
+              {/* Doctor Name */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>
+                  Doctor Name <Text style={styles.optionalTag}>(optional)</Text>
+                </Text>
+                <Controller
+                  control={control}
+                  name={`medications.${index}.doctorName`}
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. Dr. Smith"
+                      placeholderTextColor={COLORS.placeholder}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                    />
+                  )}
+                />
+              </View>
+
+              {/* Doctor Number */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>
+                  Doctor Number <Text style={styles.optionalTag}>(optional)</Text>
+                </Text>
+                <Controller
+                  control={control}
+                  name={`medications.${index}.doctorNumber`}
+                  render={({ field: { value, onChange, onBlur } }) => (
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. +1 234 567 8900"
+                      placeholderTextColor={COLORS.placeholder}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="phone-pad"
+                      returnKeyType="done"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Add Medication Button */}
+        <TouchableOpacity
+          style={styles.addMedicationButton}
+          onPress={() => append({ ...EMPTY_MEDICATION })}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.addMedicationIcon}>+</Text>
+          <Text style={styles.addMedicationText}>Add Medication</Text>
+        </TouchableOpacity>
 
         {/* Actions */}
         <View style={styles.actions}>
@@ -528,7 +581,7 @@ export default function MedicationProfileForm({ onSubmit }: MedicationProfileFor
             {isSubmitting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Analyse Medication</Text>
+              <Text style={styles.submitButtonText}>Save Profile</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -569,9 +622,9 @@ const INTAKE_METHOD_OPTIONS: SelectOption[] = [
 const COLORS = {
   background: '#F0F4F8',
   card: '#FFFFFF',
-  primary: '#1A73E8',       // Action Blue
+  primary: '#1A73E8',
   primaryDark: '#1557B0',
-  success: '#34A853',       // Safety Green
+  success: '#34A853',
   error: '#D93025',
   label: '#1C2B3A',
   sublabel: '#5F6B78',
@@ -592,19 +645,18 @@ const COLORS = {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: COLORS.background },
-
   scroll: { flex: 1 },
-
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 28,
     paddingBottom: 48,
+    gap: 16,
   },
 
   // Header
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   headerBadge: {
     width: 52,
@@ -639,7 +691,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Card
+  // Card (patient info)
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 20,
@@ -650,6 +702,67 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 3,
+  },
+
+  // Medication card
+  medicationCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  medicationCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  medicationCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.label,
+  },
+  removeButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.error,
+  },
+  removeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.error,
+  },
+
+  // Add medication button
+  addMedicationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.badgeBg,
+  },
+  addMedicationIcon: {
+    fontSize: 20,
+    color: COLORS.primary,
+    fontWeight: '600',
+    lineHeight: 22,
+  },
+  addMedicationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 
   // Section
@@ -698,7 +811,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F5',
   },
 
-  // Input row (input + unit badge)
+  // Input row
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -815,7 +928,6 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
   },
   resetButton: {
     flex: 1,
@@ -893,7 +1005,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     color: COLORS.sublabel,
-    marginTop: 20,
     letterSpacing: 0.2,
     lineHeight: 16,
   },
