@@ -1,13 +1,16 @@
 import { SafeAreaView, StyleSheet } from 'react-native';
 import MedicationProfileForm from '@/components/forms/MedicationProfileForm';
+import { useRouter } from 'expo-router';
 
 export default function MedicationProfileScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container}>
       <MedicationProfileForm
         onSubmit={(data) => {
           console.log('[SmartDrugChecker] Form submitted:', data);
-          // TODO: pass to drug analysis logic
+          router.push('/home');
         }}
       />
     </SafeAreaView>

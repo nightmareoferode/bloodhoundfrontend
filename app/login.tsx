@@ -1,6 +1,7 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[1-9]\d{6,14}$/;
@@ -12,6 +13,7 @@ function getInputType(value: string): 'email' | 'phone' | null {
 }
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -48,6 +50,7 @@ export default function LoginScreen() {
         <TouchableOpacity
           style={[styles.button, inputType === null && styles.buttonDisabled]}
           disabled={inputType === null}
+          onPress={() => router.push('/home')}
         >
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
