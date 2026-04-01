@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { getMedicationProfile, MedicationProfile } from '@/store/medicationStore';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { fetchAndSaveUserData, getUserData, User } from '@/store/userStore';
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -22,14 +22,22 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
 
 export default function UserProfileScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<MedicationProfile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getMedicationProfile()
-      .then(setProfile)
-      .finally(() => setLoading(false));
-  }, []);
+  // Fetch fresh user data from API whenever screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchAndSaveUserData()
+        .then(setUser)
+        .catch(() => {
+          // Fall back to cached data if API fails
+          getUserData().then(setUser);
+        })
+        .finally(() => setLoading(false));
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -41,14 +49,14 @@ export default function UserProfileScreen() {
     );
   }
 
-  if (!profile) {
+  if (!user) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>No Profile Found</Text>
-          <Text style={styles.emptySubtitle}>Complete your medication profile to see it here.</Text>
-          <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/medication-profile')}>
-            <Text style={styles.ctaButtonText}>Set Up Profile</Text>
+          <Text style={styles.emptySubtitle}>Please log in to see your profile.</Text>
+          <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/login')}>
+            <Text style={styles.ctaButtonText}>Log In</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -71,24 +79,23 @@ export default function UserProfileScreen() {
           <Text style={styles.headerSubtitle}>Smart Drugs Detector</Text>
         </View>
 
-        {/* Patient Information Card */}
+        {/* User Information Card */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Patient Information</Text>
+          <Text style={styles.sectionTitle}>User Information</Text>
           <View style={styles.divider} />
-          <InfoRow label="Full Name" value={profile.name} />
-          <InfoRow label="Age" value={profile.age} />
-          <InfoRow label="Sex" value={profile.sex} />
+          <InfoRow label="Username" value={user.username} />
+          <InfoRow label="Email" value={user.email || undefined} />
+          <InfoRow label="Phone" value={user.phone || undefined} />
         </View>
 
         {/* One card per medication */}
-        {profile.medications.map((med, index) => {
-          const courseSummary = `${med.courseDuration} ${med.courseDurationUnit}`;
-          const frequencySummary = `${med.timesPerDay} times/day`;
-          const potencyDisplay = med.potency ? `${med.potency} mg` : undefined;
+        {user.medications.map((med, index) => {
+          const courseSummary = `${med.course_duration_value} ${med.course_duration_unit}`;
+          const frequencySummary = med.frequency;
 
           return (
-            <View key={index} style={styles.card}>
-              {profile.medications.length > 1 && (
+            <View key={med.id} style={styles.card}>
+              {user.medications.length > 1 && (
                 <View style={styles.medicationIndexBadge}>
                   <Text style={styles.medicationIndexText}>Medication {index + 1}</Text>
                 </View>
@@ -96,24 +103,26 @@ export default function UserProfileScreen() {
 
               <Text style={styles.sectionTitle}>Medication Details</Text>
               <View style={styles.divider} />
-              <InfoRow label="Medication Name" value={med.medicationName} />
-              <InfoRow label="Potency" value={potencyDisplay} />
-              <InfoRow label="Product Type" value={med.productType} />
-              <InfoRow label="Method of Intake" value={med.methodOfIntake} />
+              <InfoRow label="Medication Name" value={med.name} />
+              {med.usa_name && <InfoRow label="USA Name" value={med.usa_name} />}
+              <InfoRow label="Potency" value={med.potency} />
+              <InfoRow label="Product Type" value={med.product_type} />
+              <InfoRow label="Method of Intake" value={med.method_of_intake} />
 
               <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Course & Schedule</Text>
               <View style={styles.divider} />
               <InfoRow label="Course Duration" value={courseSummary} />
               <InfoRow label="Frequency" value={frequencySummary} />
-              <InfoRow label="First Dose Time" value={med.firstDoseTime} />
-
-              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Doctor Information</Text>
-              <View style={styles.divider} />
-              <InfoRow label="Doctor Name" value={med.doctorName} />
-              <InfoRow label="Doctor Number" value={med.doctorNumber} />
+              <InfoRow label="First Dose Time" value={med.first_dose_time} />
             </View>
           );
         })}
+
+        {user.medications.length === 0 && (
+          <View style={styles.card}>
+            <Text style={styles.emptyMedsText}>No medications saved yet.</Text>
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.editButton}
@@ -305,6 +314,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
+  },
+  emptyMedsText: {
+    fontSize: 14,
+    color: COLORS.sublabel,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
   ctaButton: {
     paddingVertical: 14,

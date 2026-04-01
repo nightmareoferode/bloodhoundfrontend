@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { getMedicationProfile, MedicationEntry } from '@/store/medicationStore';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { fetchAndSaveUserData, getUserData, Medication } from '@/store/userStore';
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -26,20 +26,18 @@ function MedDetailModal({
   visible,
   onClose,
 }: {
-  med: MedicationEntry;
+  med: Medication;
   visible: boolean;
   onClose: () => void;
 }) {
-  const courseSummary = `${med.courseDuration} ${med.courseDurationUnit}`;
-  const frequencySummary = `${med.timesPerDay} times/day`;
-  const potencyDisplay = med.potency ? `${med.potency} mg` : undefined;
+  const courseSummary = `${med.course_duration_value} ${med.course_duration_unit}`;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{med.medicationName}</Text>
+            <Text style={styles.modalTitle}>{med.name}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.modalClose}>✕</Text>
             </TouchableOpacity>
@@ -48,25 +46,17 @@ function MedDetailModal({
           <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
             <Text style={styles.sectionTitle}>Medication Details</Text>
             <View style={styles.divider} />
-            <InfoRow label="Name" value={med.medicationName} />
-            <InfoRow label="Potency" value={potencyDisplay} />
-            <InfoRow label="Product Type" value={med.productType} />
-            <InfoRow label="Method of Intake" value={med.methodOfIntake} />
+            <InfoRow label="Name" value={med.name} />
+            {med.usa_name && <InfoRow label="USA Name" value={med.usa_name} />}
+            <InfoRow label="Potency" value={med.potency} />
+            <InfoRow label="Product Type" value={med.product_type} />
+            <InfoRow label="Method of Intake" value={med.method_of_intake} />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Course & Schedule</Text>
             <View style={styles.divider} />
             <InfoRow label="Duration" value={courseSummary} />
-            <InfoRow label="Frequency" value={frequencySummary} />
-            <InfoRow label="First Dose" value={med.firstDoseTime} />
-
-            {(med.doctorName || med.doctorNumber) && (
-              <>
-                <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Doctor</Text>
-                <View style={styles.divider} />
-                <InfoRow label="Name" value={med.doctorName} />
-                <InfoRow label="Number" value={med.doctorNumber} />
-              </>
-            )}
+            <InfoRow label="Frequency" value={med.frequency} />
+            <InfoRow label="First Dose" value={med.first_dose_time} />
           </ScrollView>
         </View>
       </View>
@@ -78,11 +68,11 @@ function MedCard({
   med,
   onPress,
 }: {
-  med: MedicationEntry;
+  med: Medication;
   onPress: () => void;
 }) {
-  const potencyDisplay = med.potency ? ` · ${med.potency} mg` : '';
-  const courseSummary = `${med.courseDuration} ${med.courseDurationUnit}`;
+  const potencyDisplay = med.potency ? ` · ${med.potency}` : '';
+  const courseSummary = `${med.course_duration_value} ${med.course_duration_unit}`;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
@@ -92,9 +82,9 @@ function MedCard({
         </View>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle}>{med.medicationName}{potencyDisplay}</Text>
-        <Text style={styles.cardSub}>{med.productType} · {med.methodOfIntake}</Text>
-        <Text style={styles.cardMeta}>{courseSummary} · {med.timesPerDay}×/day · first dose {med.firstDoseTime}</Text>
+        <Text style={styles.cardTitle}>{med.name}{potencyDisplay}</Text>
+        <Text style={styles.cardSub}>{med.product_type} · {med.method_of_intake}</Text>
+        <Text style={styles.cardMeta}>{courseSummary} · {med.frequency} · first dose {med.first_dose_time}</Text>
       </View>
       <Text style={styles.cardChevron}>›</Text>
     </TouchableOpacity>
@@ -103,17 +93,27 @@ function MedCard({
 
 export default function MedsListScreen() {
   const router = useRouter();
-  const [medications, setMedications] = useState<MedicationEntry[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<MedicationEntry | null>(null);
+  const [selected, setSelected] = useState<Medication | null>(null);
 
-  useEffect(() => {
-    getMedicationProfile()
-      .then((profile) => {
-        if (profile?.medications) setMedications(profile.medications);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  // Fetch fresh user data from API whenever screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchAndSaveUserData()
+        .then((user) => {
+          if (user?.medications) setMedications(user.medications);
+        })
+        .catch(() => {
+          // Fall back to cached data if API fails
+          getUserData().then((user) => {
+            if (user?.medications) setMedications(user.medications);
+          });
+        })
+        .finally(() => setLoading(false));
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -136,21 +136,21 @@ export default function MedsListScreen() {
         <Text style={styles.pageSubtitle}>Tap a card to view full details</Text>
 
         {medications.length > 0 ? (
-          medications.map((med, index) => (
-            <MedCard key={index} med={med} onPress={() => setSelected(med)} />
+          medications.map((med) => (
+            <MedCard key={med.id} med={med} onPress={() => setSelected(med)} />
           ))
         ) : (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>No medications saved</Text>
             <Text style={styles.emptySubtitle}>
-              Complete your medication profile to see it here.
+              Add medications to your profile to see them here.
             </Text>
             <TouchableOpacity
               style={styles.ctaButton}
               onPress={() => router.push('/medication-profile')}
               activeOpacity={0.8}
             >
-              <Text style={styles.ctaButtonText}>Set Up Profile</Text>
+              <Text style={styles.ctaButtonText}>Add Medication</Text>
             </TouchableOpacity>
           </View>
         )}

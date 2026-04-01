@@ -122,23 +122,23 @@ export async function signup(data: SignupRequest): Promise<SignupResponse> {
     throw new Error(detail);
   }
 
+  // Parse response body first
+  const responseData: SignupResponse = await response.json();
+
   // Extract and save the token from Authorization header
   const authHeader = response.headers.get('Authorization');
   if (authHeader) {
-    // Header contains the raw token (no "Bearer " prefix according to schema.md)
-    await saveToken(authHeader);
+    // Header may contain "Bearer " prefix or raw token
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    await saveToken(token);
   } else {
-    // Try to get token from response body if backend returns it there
-    const bodyClone = response.clone();
-    const body = await bodyClone.json().catch(() => ({}));
-    if (body.access_token) {
-      await saveToken(body.access_token);
-    } else {
-      console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers');
-    }
+    // Backend CORS may not expose Authorization header - this is a known issue
+    // The user will need to re-authenticate on protected endpoints
+    console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers: Authorization');
+    throw new Error('Authentication failed: Unable to save login token. Please check backend CORS configuration.');
   }
 
-  return response.json();
+  return responseData;
 }
 
 export async function logout(): Promise<void> {
@@ -162,22 +162,22 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
     throw new Error(detail);
   }
 
+  // Parse response body first
+  const responseData: LoginResponse = await response.json();
+
   // Extract and save the token from Authorization header
   const authHeader = response.headers.get('Authorization');
   if (authHeader) {
-    await saveToken(authHeader);
+    // Header may contain "Bearer " prefix or raw token
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    await saveToken(token);
   } else {
-    // Try to get token from response body if backend returns it there
-    const bodyClone = response.clone();
-    const body = await bodyClone.json().catch(() => ({}));
-    if (body.access_token) {
-      await saveToken(body.access_token);
-    } else {
-      console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers');
-    }
+    // Backend CORS may not expose Authorization header - this is a known issue
+    console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers: Authorization');
+    throw new Error('Authentication failed: Unable to save login token. Please check backend CORS configuration.');
   }
 
-  return response.json();
+  return responseData;
 }
 
 // Authenticated API request helper

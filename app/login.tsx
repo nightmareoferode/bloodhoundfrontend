@@ -34,14 +34,8 @@ export default function LoginScreen() {
         password,
       });
 
-      // Try to fetch and cache user data locally after login
-      // This may fail if the token wasn't saved (header not exposed)
-      try {
-        await fetchAndSaveUserData();
-      } catch (fetchError) {
-        console.warn('Could not fetch user data:', fetchError);
-        // Continue to home anyway - data will be fetched later
-      }
+      // Fetch and cache user data locally after login - this is required
+      await fetchAndSaveUserData();
 
       router.replace('/home');
     } catch (error) {

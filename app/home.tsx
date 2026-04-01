@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { getMedicationProfile } from '../store/medicationStore';
+import { fetchAndSaveUserData, getUserData, fullLogout } from '../store/userStore';
 
 const SIDEBAR_WIDTH = 220;
 const ICON_COLOR = '#4285F4';
@@ -27,9 +27,17 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getMedicationProfile().then((profile) => {
-        if (profile?.name) setUserName(profile.name);
-      });
+      // Try to fetch fresh data from API, fall back to cache
+      fetchAndSaveUserData()
+        .then((user) => {
+          if (user?.username) setUserName(user.username);
+        })
+        .catch(() => {
+          // Fall back to cached data if API fails
+          getUserData().then((user) => {
+            if (user?.username) setUserName(user.username);
+          });
+        });
     }, [])
   );
 
@@ -190,15 +198,14 @@ export default function HomeScreen() {
                     !logoMenuSelection && styles.logoMenuConfirmDisabled,
                   ]}
                   disabled={!logoMenuSelection}
-                  onPress={() => {
+                  onPress={async () => {
                     setLogoMenuVisible(false);
                     setLogoMenuSelection(null);
                     closeSidebar();
-                    if (logoMenuSelection === 'switch') {
-                      router.replace('/');
-                    } else if (logoMenuSelection === 'logout') {
-                      router.replace('/');
+                    if (logoMenuSelection === 'logout') {
+                      await fullLogout();
                     }
+                    router.replace('/');
                   }}
                 >
                   <Text style={styles.logoMenuConfirmText}>Confirm</Text>
