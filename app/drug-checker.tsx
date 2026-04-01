@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { fetchAndSaveUserData } from '../store/userStore';
+import { fetchUserData } from '../store/userStore';
 import { lookupRxNorm, checkQuickReference, QuickReferenceResult } from '../store/quickReferenceStore';
 
 export default function DrugCheckerScreen() {
@@ -38,23 +38,27 @@ export default function DrugCheckerScreen() {
         return;
       }
 
-      // 2. Get user's current medications
-      const userData = await fetchAndSaveUserData();
+      // 2. Get user's current medications (fresh from API)
+      const userData = await fetchUserData();
       if (!userData.medications || userData.medications.length === 0) {
         setError('You have no medications saved. Please add medications to your profile first.');
         setLoading(false);
         return;
       }
 
-      // 3. Check interactions with each stored medication
-      const results: Array<{
-        userMedication: { name: string; usa_name: string | null; rxcui: string | null };
-        result: QuickReferenceResult;
-      }> = [];
+      // Filter to medications that have rxcui data
+      const medicationsWithRxcui = userData.medications.filter(
+        (med) => med.rxcui && med.usa_name
+      );
 
-      for (const userMed of userData.medications) {
-        if (!userMed.rxcui || !userMed.usa_name) continue;
+      if (medicationsWithRxcui.length === 0) {
+        setError('Your medications do not have RxNorm data. Please update your profile.');
+        setLoading(false);
+        return;
+      }
 
+      // 3. Check interactions with ALL medications in PARALLEL
+      const interactionPromises = medicationsWithRxcui.map(async (userMed) => {
         try {
           const interactionResult = await checkQuickReference(
             {
@@ -64,23 +68,31 @@ export default function DrugCheckerScreen() {
             },
             {
               name: userMed.name,
-              rxcui: userMed.rxcui,
-              usa_name: userMed.usa_name,
+              rxcui: userMed.rxcui!,
+              usa_name: userMed.usa_name!,
             }
           );
-          results.push({
+          return {
             userMedication: {
               name: userMed.name,
               usa_name: userMed.usa_name,
               rxcui: userMed.rxcui,
             },
             result: interactionResult,
-          });
+          };
         } catch (err) {
-          // Continue with other medications if one fails
           console.warn(`Failed to check interaction with ${userMed.name}:`, err);
+          return null; // Return null for failed checks
         }
-      }
+      });
+
+      // Wait for all parallel requests to complete
+      const settledResults = await Promise.all(interactionPromises);
+      
+      // Filter out failed (null) results
+      const results = settledResults.filter(
+        (r): r is NonNullable<typeof r> => r !== null
+      );
 
       if (results.length === 0) {
         setError('Could not analyze interactions with your medications. Please try again.');
