@@ -13,6 +13,7 @@ import {
   signup,
   SignupMedication,
 } from '@/store/authStore';
+import { fetchAndSaveUserData } from '@/store/userStore';
 
 // Map form duration units (lowercase) to API format (capitalized)
 function mapDurationUnit(unit: string): DurationUnit {
@@ -97,6 +98,14 @@ export default function MedicationProfileScreen() {
 
         // Clear pending signup data after successful registration
         await clearPendingSignup();
+
+        // Try to fetch and cache user data (including medications with rxcui) from server
+        try {
+          await fetchAndSaveUserData();
+        } catch (fetchError) {
+          console.warn('Could not fetch user data:', fetchError);
+          // Continue anyway - data will be fetched later
+        }
 
         // Save profile locally for future reference
         await saveMedicationProfile(data);

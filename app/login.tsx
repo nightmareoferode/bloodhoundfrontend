@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { login } from '@/store/authStore';
+import { fetchAndSaveUserData } from '@/store/userStore';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[1-9]\d{6,14}$/;
@@ -32,6 +33,15 @@ export default function LoginScreen() {
         phone: inputType === 'phone' ? identifier.trim() : null,
         password,
       });
+
+      // Try to fetch and cache user data locally after login
+      // This may fail if the token wasn't saved (header not exposed)
+      try {
+        await fetchAndSaveUserData();
+      } catch (fetchError) {
+        console.warn('Could not fetch user data:', fetchError);
+        // Continue to home anyway - data will be fetched later
+      }
 
       router.replace('/home');
     } catch (error) {

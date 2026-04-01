@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 const TOKEN_KEY = 'access_token';
 const SIGNUP_DATA_KEY = 'pending_signup';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://172.20.10.2:8000';
 
 const storage = {
   async getItem(key: string): Promise<string | null> {
@@ -127,6 +127,15 @@ export async function signup(data: SignupRequest): Promise<SignupResponse> {
   if (authHeader) {
     // Header contains the raw token (no "Bearer " prefix according to schema.md)
     await saveToken(authHeader);
+  } else {
+    // Try to get token from response body if backend returns it there
+    const bodyClone = response.clone();
+    const body = await bodyClone.json().catch(() => ({}));
+    if (body.access_token) {
+      await saveToken(body.access_token);
+    } else {
+      console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers');
+    }
   }
 
   return response.json();
@@ -157,6 +166,15 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
   const authHeader = response.headers.get('Authorization');
   if (authHeader) {
     await saveToken(authHeader);
+  } else {
+    // Try to get token from response body if backend returns it there
+    const bodyClone = response.clone();
+    const body = await bodyClone.json().catch(() => ({}));
+    if (body.access_token) {
+      await saveToken(body.access_token);
+    } else {
+      console.warn('No Authorization header received - backend may need to add Access-Control-Expose-Headers');
+    }
   }
 
   return response.json();

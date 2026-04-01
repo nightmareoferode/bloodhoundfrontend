@@ -1,8 +1,44 @@
 import { useRouter } from 'expo-router';
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { checkAuthOnStartup } from '../store/userStore';
 
 export default function IntroScreen() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const result = await checkAuthOnStartup();
+        
+        if (result.isAuthenticated && result.user) {
+          // User is authenticated, go directly to home
+          router.replace('/home');
+        } else {
+          // No valid token, show login/signup options
+          setIsLoading(false);
+        }
+      } catch {
+        // Error checking auth, show login/signup
+        setIsLoading(false);
+      }
+    }
+    
+    checkAuth();
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.inner}>
+          <Text style={styles.title}>BloodHound</Text>
+          <ActivityIndicator size="large" color="#2B6CB0" style={styles.loader} />
+          <Text style={styles.loadingText}>Checking authentication...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -55,6 +91,14 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     textAlign: 'center',
     marginBottom: 48,
+  },
+  loader: {
+    marginTop: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#4A5568',
   },
   box: {
     width: 280,
