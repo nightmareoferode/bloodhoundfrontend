@@ -3,7 +3,7 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 const SECTIONS = [
   {
     title: 'Quick Reference',
-    body: 'To use Quick Reference, just type in the names of two medicines. The tool quickly checks for any dangerous interactions and shows you a risk level. It also gives simple tips on how to handle side effects and helps you contact your doctor immediately if the situation looks serious.',
+    body: 'To use Quick Reference, type in the name of a medicine you want to check. BloodHound will look it up in the RxNorm database and compare it against all your saved medications for potential interactions. You\'ll see a detailed risk assessment with severity levels, mechanisms, and clinical recommendations.',
   },
   {
     title: 'List of Existing Meds',

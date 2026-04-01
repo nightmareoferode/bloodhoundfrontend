@@ -1,103 +1,155 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Dimensions, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-
-const BOX_SIZE = (Dimensions.get('window').width - 24 * 2 - 20 * 2 - 12) / 2;
-
-const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+import {
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { fetchAndSaveUserData } from '../store/userStore';
+import { lookupRxNorm, checkQuickReference, QuickReferenceResult } from '../store/quickReferenceStore';
 
 export default function DrugCheckerScreen() {
-  const [drug1, setDrug1] = useState('');
-  const [drug2, setDrug2] = useState('');
-  const [hour1, setHour1] = useState('00');
-  const [min1, setMin1] = useState('00');
-  const [hour2, setHour2] = useState('00');
-  const [min2, setMin2] = useState('00');
+  const router = useRouter();
+  const [medicineName, setMedicineName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    const trimmedName = medicineName.trim();
+    if (!trimmedName) {
+      setError('Please enter a medicine name');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Look up the medicine in RxNorm to get rxcui and usa_name
+      const rxNormResult = await lookupRxNorm(trimmedName);
+      if (!rxNormResult) {
+        setError(`No RxNorm match found for "${trimmedName}". Please check the spelling.`);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Get user's current medications
+      const userData = await fetchAndSaveUserData();
+      if (!userData.medications || userData.medications.length === 0) {
+        setError('You have no medications saved. Please add medications to your profile first.');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Check interactions with each stored medication
+      const results: Array<{
+        userMedication: { name: string; usa_name: string | null; rxcui: string | null };
+        result: QuickReferenceResult;
+      }> = [];
+
+      for (const userMed of userData.medications) {
+        if (!userMed.rxcui || !userMed.usa_name) continue;
+
+        try {
+          const interactionResult = await checkQuickReference(
+            {
+              name: trimmedName,
+              rxcui: rxNormResult.rxcui,
+              usa_name: rxNormResult.usa_name,
+            },
+            {
+              name: userMed.name,
+              rxcui: userMed.rxcui,
+              usa_name: userMed.usa_name,
+            }
+          );
+          results.push({
+            userMedication: {
+              name: userMed.name,
+              usa_name: userMed.usa_name,
+              rxcui: userMed.rxcui,
+            },
+            result: interactionResult,
+          });
+        } catch (err) {
+          // Continue with other medications if one fails
+          console.warn(`Failed to check interaction with ${userMed.name}:`, err);
+        }
+      }
+
+      if (results.length === 0) {
+        setError('Could not analyze interactions with your medications. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // 4. Navigate to results page with the data
+      router.push({
+        pathname: '/quick-reference-results',
+        params: {
+          inputMedicine: JSON.stringify({
+            name: trimmedName,
+            rxcui: rxNormResult.rxcui,
+            usa_name: rxNormResult.usa_name,
+          }),
+          results: JSON.stringify(results),
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.inner}>
-
-        <Text style={styles.header}>QR · Enter Medicines to assess risks</Text>
+        <Text style={styles.header}>Quick Reference</Text>
+        <Text style={styles.subheader}>
+          Check for interactions between a medicine and your current medications
+        </Text>
 
         <View style={styles.card}>
-          {/* Drug input fields */}
+          <Text style={styles.label}>Input name of medicine</Text>
           <TextInput
-            style={styles.drugInput}
-            placeholder="Enter drug 1 / describe medicine"
+            style={styles.input}
+            placeholder="e.g. Ibuprofen, Aspirin, Metformin..."
             placeholderTextColor="#A0AEC0"
-            value={drug1}
-            onChangeText={setDrug1}
-            multiline
+            value={medicineName}
+            onChangeText={(text) => {
+              setMedicineName(text);
+              setError(null);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
           />
 
-          <TextInput
-            style={styles.drugInput}
-            placeholder="Enter drug 2 / describe medicine"
-            placeholderTextColor="#A0AEC0"
-            value={drug2}
-            onChangeText={setDrug2}
-            multiline
-          />
-
-          {/* Time taken pickers */}
-          <View style={styles.timeRow}>
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>Medication 1 time taken</Text>
-              <Text style={styles.timeDisplay}>{hour1}:{min1}</Text>
-              <View style={styles.pickerRow}>
-                <Picker
-                  selectedValue={hour1}
-                  onValueChange={setHour1}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  {HOURS.map(h => <Picker.Item key={h} label={h} value={h} />)}
-                </Picker>
-                <Text style={styles.pickerColon}>:</Text>
-                <Picker
-                  selectedValue={min1}
-                  onValueChange={setMin1}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  {MINUTES.map(m => <Picker.Item key={m} label={m} value={m} />)}
-                </Picker>
-              </View>
+          {error && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
+          )}
 
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>Medication 2 time taken</Text>
-              <Text style={styles.timeDisplay}>{hour2}:{min2}</Text>
-              <View style={styles.pickerRow}>
-                <Picker
-                  selectedValue={hour2}
-                  onValueChange={setHour2}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  {HOURS.map(h => <Picker.Item key={h} label={h} value={h} />)}
-                </Picker>
-                <Text style={styles.pickerColon}>:</Text>
-                <Picker
-                  selectedValue={min2}
-                  onValueChange={setMin2}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  {MINUTES.map(m => <Picker.Item key={m} label={m} value={m} />)}
-                </Picker>
-              </View>
-            </View>
-          </View>
-
-          {/* Start Analysis button */}
-          <TouchableOpacity style={styles.analyseButton}>
-            <Text style={styles.analyseButtonText}>Start Analysis</Text>
+          <TouchableOpacity
+            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitButtonText}>Check Interactions</Text>
+            )}
           </TouchableOpacity>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -115,11 +167,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1A202C',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  subheader: {
+    fontSize: 14,
+    color: '#718096',
+    textAlign: 'center',
     marginBottom: 32,
+    paddingHorizontal: 20,
   },
   card: {
     width: '100%',
@@ -133,71 +192,42 @@ const styles = StyleSheet.create({
     elevation: 4,
     gap: 16,
   },
-  drugInput: {
-    backgroundColor: '#F7FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+  label: {
     fontSize: 15,
-    color: '#1A202C',
-    minHeight: 80,
-    textAlignVertical: 'top',
+    fontWeight: '600',
+    color: '#4A5568',
+    marginBottom: 4,
   },
-  timeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  timeBox: {
-    width: BOX_SIZE,
-    height: BOX_SIZE,
+  input: {
     backgroundColor: '#F7FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E0',
     borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1A202C',
+  },
+  errorBox: {
+    backgroundColor: '#FED7D7',
+    borderRadius: 8,
     padding: 12,
-    overflow: 'hidden',
   },
-  timeLabel: {
-    fontSize: 10,
-    color: '#718096',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  timeDisplay: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2B6CB0',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  pickerRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  picker: {
-    flex: 1,
-    height: '100%',
-  },
-  pickerItem: {
+  errorText: {
+    color: '#C53030',
     fontSize: 14,
-    height: 80,
   },
-  pickerColon: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4A5568',
-  },
-  analyseButton: {
+  submitButton: {
     backgroundColor: '#2B6CB0',
     borderRadius: 50,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
-  analyseButtonText: {
+  submitButtonDisabled: {
+    backgroundColor: '#A0AEC0',
+  },
+  submitButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
