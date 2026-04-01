@@ -85,6 +85,7 @@ interface SelectFieldProps {
 interface MedicationProfileFormProps {
   onSubmit: (data: FormData) => void;
   initialValues?: Partial<FormData>;
+  isSubmitting?: boolean;
 }
 
 // ─── Empty medication defaults ───────────────────────────────────────────────
@@ -159,8 +160,9 @@ function SelectField({ label, value, options, placeholder, onSelect, error }: Se
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function MedicationProfileForm({ onSubmit, initialValues }: MedicationProfileFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function MedicationProfileForm({ onSubmit, initialValues, isSubmitting: externalSubmitting }: MedicationProfileFormProps) {
+  const [internalSubmitting, setInternalSubmitting] = useState(false);
+  const isSubmitting = externalSubmitting ?? internalSubmitting;
 
   const {
     control,
@@ -185,9 +187,9 @@ export default function MedicationProfileForm({ onSubmit, initialValues }: Medic
   });
 
   const handleFormSubmit = (data: FormData) => {
-    setIsSubmitting(true);
+    setInternalSubmitting(true);
     onSubmit(data);
-    setIsSubmitting(false);
+    // Don't set to false here - parent controls async completion
   };
 
   const handleReset = () => {

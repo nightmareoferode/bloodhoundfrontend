@@ -34,7 +34,13 @@ Base URL: `http://localhost:8000`
 - `GET/PATCH/DELETE /users/me` — User profile
 - `GET/PATCH/DELETE /medications` — User's medications
 
-JWT tokens are returned in the `Authorization` header (extract and store via `expo-secure-store`). Tokens expire after 30 days with no refresh mechanism.
+### Authentication
+- JWT tokens returned in `Authorization` response header (raw token, no "Bearer" prefix)
+- Store token via `expo-secure-store` (native) or `localStorage` (web)
+- Include token in requests as `Authorization: Bearer <token>` header
+- Use `authenticatedFetch()` from `authStore.ts` for protected endpoints
+- Tokens expire after 30 days with no refresh — user must re-login
+- On 401 response, clear token and redirect to login
 
 ## Key Conventions
 
@@ -43,7 +49,8 @@ Use `react-hook-form` with `zod` schemas and `@hookform/resolvers/zod`. Define s
 
 ### Storage
 Use the `store/` modules which abstract `expo-secure-store` (native) vs `localStorage` (web):
-- `medicationStore.ts` — User profile and medications
+- `authStore.ts` — JWT token, login/signup API calls, `authenticatedFetch()` helper
+- `medicationStore.ts` — User profile and medications (local cache)
 - `searchStore.ts` — Recent search history
 
 ### Type Aliases

@@ -1,7 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { login } from '@/store/authStore';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[1-9]\d{6,14}$/;
@@ -16,8 +17,30 @@ export default function LoginScreen() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const inputType = getInputType(identifier);
+  const isFormValid = inputType !== null && password.length > 0;
+
+  const handleLogin = async () => {
+    if (!isFormValid) return;
+
+    setIsLoading(true);
+    try {
+      await login({
+        email: inputType === 'email' ? identifier.trim() : null,
+        phone: inputType === 'phone' ? identifier.trim() : null,
+        password,
+      });
+
+      router.replace('/home');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      Alert.alert('Login Error', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -33,6 +56,7 @@ export default function LoginScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          editable={!isLoading}
         />
         <TextInput
           style={styles.input}
@@ -41,6 +65,7 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!isLoading}
         />
 
         {identifier.length > 0 && inputType === null && (
@@ -48,11 +73,15 @@ export default function LoginScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.button, inputType === null && styles.buttonDisabled]}
-          disabled={inputType === null}
-          onPress={() => router.push('/home')}
+          style={[styles.button, (!isFormValid || isLoading) && styles.buttonDisabled]}
+          disabled={!isFormValid || isLoading}
+          onPress={handleLogin}
         >
-          <Text style={styles.buttonText}>Login</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Login</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

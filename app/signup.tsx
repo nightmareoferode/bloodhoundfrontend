@@ -2,6 +2,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import { SafeAreaView } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { savePendingSignup } from '@/store/authStore';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[0-9\s\-().]{7,15}$/;
@@ -21,6 +22,24 @@ export default function SignUpScreen() {
 
   const contactType = getContactType(contact);
   const contactError = contactType === 'invalid' ? 'Enter a valid email or phone number' : null;
+
+  const isFormValid =
+    username.trim().length > 0 &&
+    password.length > 0 &&
+    (contactType === 'email' || contactType === 'phone');
+
+  const handleContinue = async () => {
+    if (!isFormValid) return;
+
+    await savePendingSignup({
+      username: username.trim(),
+      email: contactType === 'email' ? contact.trim() : undefined,
+      phone: contactType === 'phone' ? contact.trim() : undefined,
+      password,
+    });
+
+    router.push('/medication-profile');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,14 +76,11 @@ export default function SignUpScreen() {
         />
 
         <TouchableOpacity
-          style={[styles.button, (contactType === 'invalid' || contactType === 'empty') ? styles.buttonDisabled : null]}
-          onPress={() => {
-            if (contactType === 'email' || contactType === 'phone') {
-              router.push('/medication-profile');
-            }
-          }}
+          style={[styles.button, !isFormValid && styles.buttonDisabled]}
+          disabled={!isFormValid}
+          onPress={handleContinue}
         >
-          <Text style={styles.buttonText}>Sign Up</Text>
+          <Text style={styles.buttonText}>Continue</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
