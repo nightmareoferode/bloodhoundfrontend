@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getMedicationProfile, MedicationProfile } from '@/store/medicationStore';
+import { getMedicationProfile, MedicationEntry } from '@/store/medicationStore';
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -22,24 +22,24 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
 }
 
 function MedDetailModal({
-  profile,
+  med,
   visible,
   onClose,
 }: {
-  profile: MedicationProfile;
+  med: MedicationEntry;
   visible: boolean;
   onClose: () => void;
 }) {
-  const courseSummary = `${profile.courseDuration} ${profile.courseDurationUnit}`;
-  const frequencySummary = `${profile.timesPerDay} times/day`;
-  const potencyDisplay = profile.potency ? `${profile.potency} mg` : undefined;
+  const courseSummary = `${med.courseDuration} ${med.courseDurationUnit}`;
+  const frequencySummary = `${med.timesPerDay} times/day`;
+  const potencyDisplay = med.potency ? `${med.potency} mg` : undefined;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{profile.medicationName}</Text>
+            <Text style={styles.modalTitle}>{med.medicationName}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.modalClose}>✕</Text>
             </TouchableOpacity>
@@ -48,23 +48,23 @@ function MedDetailModal({
           <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
             <Text style={styles.sectionTitle}>Medication Details</Text>
             <View style={styles.divider} />
-            <InfoRow label="Name" value={profile.medicationName} />
+            <InfoRow label="Name" value={med.medicationName} />
             <InfoRow label="Potency" value={potencyDisplay} />
-            <InfoRow label="Product Type" value={profile.productType} />
-            <InfoRow label="Method of Intake" value={profile.methodOfIntake} />
+            <InfoRow label="Product Type" value={med.productType} />
+            <InfoRow label="Method of Intake" value={med.methodOfIntake} />
 
             <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Course & Schedule</Text>
             <View style={styles.divider} />
             <InfoRow label="Duration" value={courseSummary} />
             <InfoRow label="Frequency" value={frequencySummary} />
-            <InfoRow label="First Dose" value={profile.firstDoseTime} />
+            <InfoRow label="First Dose" value={med.firstDoseTime} />
 
-            {(profile.doctorName || profile.doctorNumber) && (
+            {(med.doctorName || med.doctorNumber) && (
               <>
                 <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Doctor</Text>
                 <View style={styles.divider} />
-                <InfoRow label="Name" value={profile.doctorName} />
-                <InfoRow label="Number" value={profile.doctorNumber} />
+                <InfoRow label="Name" value={med.doctorName} />
+                <InfoRow label="Number" value={med.doctorNumber} />
               </>
             )}
           </ScrollView>
@@ -75,14 +75,14 @@ function MedDetailModal({
 }
 
 function MedCard({
-  profile,
+  med,
   onPress,
 }: {
-  profile: MedicationProfile;
+  med: MedicationEntry;
   onPress: () => void;
 }) {
-  const potencyDisplay = profile.potency ? ` · ${profile.potency} mg` : '';
-  const courseSummary = `${profile.courseDuration} ${profile.courseDurationUnit}`;
+  const potencyDisplay = med.potency ? ` · ${med.potency} mg` : '';
+  const courseSummary = `${med.courseDuration} ${med.courseDurationUnit}`;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
@@ -92,9 +92,9 @@ function MedCard({
         </View>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle}>{profile.medicationName}{potencyDisplay}</Text>
-        <Text style={styles.cardSub}>{profile.productType} · {profile.methodOfIntake}</Text>
-        <Text style={styles.cardMeta}>{courseSummary} · {profile.timesPerDay}×/day · first dose {profile.firstDoseTime}</Text>
+        <Text style={styles.cardTitle}>{med.medicationName}{potencyDisplay}</Text>
+        <Text style={styles.cardSub}>{med.productType} · {med.methodOfIntake}</Text>
+        <Text style={styles.cardMeta}>{courseSummary} · {med.timesPerDay}×/day · first dose {med.firstDoseTime}</Text>
       </View>
       <Text style={styles.cardChevron}>›</Text>
     </TouchableOpacity>
@@ -103,13 +103,15 @@ function MedCard({
 
 export default function MedsListScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<MedicationProfile | null>(null);
+  const [medications, setMedications] = useState<MedicationEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<MedicationProfile | null>(null);
+  const [selected, setSelected] = useState<MedicationEntry | null>(null);
 
   useEffect(() => {
     getMedicationProfile()
-      .then(setProfile)
+      .then((profile) => {
+        if (profile?.medications) setMedications(profile.medications);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -133,8 +135,10 @@ export default function MedsListScreen() {
         <Text style={styles.pageTitle}>Existing Medications</Text>
         <Text style={styles.pageSubtitle}>Tap a card to view full details</Text>
 
-        {profile ? (
-          <MedCard profile={profile} onPress={() => setSelected(profile)} />
+        {medications.length > 0 ? (
+          medications.map((med, index) => (
+            <MedCard key={index} med={med} onPress={() => setSelected(med)} />
+          ))
         ) : (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>No medications saved</Text>
@@ -154,7 +158,7 @@ export default function MedsListScreen() {
 
       {selected && (
         <MedDetailModal
-          profile={selected}
+          med={selected}
           visible={!!selected}
           onClose={() => setSelected(null)}
         />

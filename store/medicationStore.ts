@@ -1,6 +1,22 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const PROFILE_KEY = 'medication_profile';
+
+const storage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') return localStorage.getItem(key);
+    return SecureStore.getItemAsync(key);
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') { localStorage.setItem(key, value); return; }
+    return SecureStore.setItemAsync(key, value);
+  },
+  async deleteItem(key: string): Promise<void> {
+    if (Platform.OS === 'web') { localStorage.removeItem(key); return; }
+    return SecureStore.deleteItemAsync(key);
+  },
+};
 
 export type MedicationEntry = {
   medicationName: string;
@@ -23,11 +39,11 @@ export type MedicationProfile = {
 };
 
 export async function saveMedicationProfile(data: MedicationProfile): Promise<void> {
-  await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(data));
+  await storage.setItem(PROFILE_KEY, JSON.stringify(data));
 }
 
 export async function getMedicationProfile(): Promise<MedicationProfile | null> {
-  const json = await SecureStore.getItemAsync(PROFILE_KEY);
+  const json = await storage.getItem(PROFILE_KEY);
   if (!json) return null;
   const data = JSON.parse(json);
 
@@ -52,5 +68,5 @@ export async function getMedicationProfile(): Promise<MedicationProfile | null> 
 }
 
 export async function clearMedicationProfile(): Promise<void> {
-  await SecureStore.deleteItemAsync(PROFILE_KEY);
+  await storage.deleteItem(PROFILE_KEY);
 }
