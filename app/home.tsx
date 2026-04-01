@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { User, Search } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -13,11 +14,11 @@ export default function HomeScreen() {
         <View style={styles.sidebar}>
           <Text style={styles.logo}>BH</Text>
           <View style={styles.sidebarIcons}>
-            <TouchableOpacity onPress={() => router.push('/user-profile')}>
-              <Text style={styles.icon}>user</Text>
+            <TouchableOpacity style={styles.userIconButton} onPress={() => router.push('/user-profile')}>
+              <User size={22} color="#2B6CB0" strokeWidth={2} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/search')}>
-              <Text style={styles.icon}>search</Text>
+            <TouchableOpacity style={styles.searchIconButton} onPress={() => router.push('/search')}>
+              <Search size={20} color="#2B6CB0" strokeWidth={2.5} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/medication-profile')}>
               <Text style={styles.icon}>edit</Text>
@@ -80,6 +81,31 @@ const styles = StyleSheet.create({
     color: '#BEE3F8',
     fontSize: 12,
     textAlign: 'center',
+  },
+  userIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#CBD5E0',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 3,
+    elevation: 1,
   },
 
   // Main
