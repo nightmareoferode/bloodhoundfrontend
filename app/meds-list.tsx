@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { fetchAndSaveUserData, getUserData, Medication } from '@/store/userStore';
+import { fetchUserData, Medication } from '@/store/userStore';
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -97,19 +97,15 @@ export default function MedsListScreen() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Medication | null>(null);
 
-  // Fetch fresh user data from API whenever screen comes into focus
+  // Always fetch fresh user data from API when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      fetchAndSaveUserData()
-        .then((user) => {
-          if (user?.medications) setMedications(user.medications);
-        })
-        .catch(() => {
-          // Fall back to cached data if API fails
-          getUserData().then((user) => {
-            if (user?.medications) setMedications(user.medications);
-          });
+      fetchUserData()
+        .then((user) => setMedications(user.medications))
+        .catch((err) => {
+          console.error('Failed to fetch medications:', err);
+          setMedications([]);
         })
         .finally(() => setLoading(false));
     }, [])

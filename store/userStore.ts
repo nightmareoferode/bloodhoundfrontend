@@ -77,8 +77,8 @@ export async function clearUserData(): Promise<void> {
   await storage.deleteItem(USER_DATA_KEY);
 }
 
-// Fetch fresh user data from API and save locally
-export async function fetchAndSaveUserData(): Promise<User> {
+// Fetch fresh user data from API (always fresh, no caching)
+export async function fetchUserData(): Promise<User> {
   const response = await authenticatedFetch('/users/me');
   
   if (!response.ok) {
@@ -88,8 +88,50 @@ export async function fetchAndSaveUserData(): Promise<User> {
   }
   
   const user: User = await response.json();
+  return user;
+}
+
+// Fetch fresh user data from API and save locally (kept for auth startup)
+export async function fetchAndSaveUserData(): Promise<User> {
+  const user = await fetchUserData();
   await saveUserData(user);
   return user;
+}
+
+// Update request types for PATCH /users/me
+export type MedicationUpdate = {
+  name: string;
+  potency: string;
+  product_type: ProductType;
+  method_of_intake: MethodOfIntake;
+  course_duration_value: number;
+  course_duration_unit: DurationUnit;
+  frequency: string;
+  first_dose_time: string;
+};
+
+export type UserUpdateRequest = {
+  username?: string;
+  email?: string | null;
+  phone?: string | null;
+  medications?: MedicationUpdate[];
+};
+
+// Update user profile on backend (no caching, callers should refresh if needed)
+export async function updateUserProfile(data: UserUpdateRequest): Promise<User> {
+  const response = await authenticatedFetch('/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    const detail = errorBody.detail || `Failed to update profile: ${response.status}`;
+    throw new Error(detail);
+  }
+
+  const updatedUser: User = await response.json();
+  return updatedUser;
 }
 
 // Check authentication status on app startup

@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { fetchAndSaveUserData, getUserData, fullLogout } from '../store/userStore';
+import { fetchUserData, fullLogout } from '../store/userStore';
 
 const SIDEBAR_WIDTH = 220;
 const ICON_COLOR = '#4285F4';
@@ -27,16 +27,12 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Try to fetch fresh data from API, fall back to cache
-      fetchAndSaveUserData()
-        .then((user) => {
-          if (user?.username) setUserName(user.username);
-        })
-        .catch(() => {
-          // Fall back to cached data if API fails
-          getUserData().then((user) => {
-            if (user?.username) setUserName(user.username);
-          });
+      // Always fetch fresh user data from API
+      fetchUserData()
+        .then((user) => setUserName(user.username))
+        .catch((err) => {
+          console.error('Failed to fetch user data:', err);
+          setUserName('');
         });
     }, [])
   );

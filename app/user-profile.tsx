@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { fetchAndSaveUserData, getUserData, User } from '@/store/userStore';
+import { fetchUserData, User } from '@/store/userStore';
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
   return (
@@ -25,15 +25,15 @@ export default function UserProfileScreen() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch fresh user data from API whenever screen comes into focus
+  // Always fetch fresh user data from API when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      fetchAndSaveUserData()
+      fetchUserData()
         .then(setUser)
-        .catch(() => {
-          // Fall back to cached data if API fails
-          getUserData().then(setUser);
+        .catch((err) => {
+          console.error('Failed to fetch user data:', err);
+          setUser(null);
         })
         .finally(() => setLoading(false));
     }, [])
